@@ -1,0 +1,6 @@
+web_server
+*.o
+*.out
+.git
+.gitignore
+README*

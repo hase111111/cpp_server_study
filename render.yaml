@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: cpp-server-study
+    env: docker
+    region: oregon
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
