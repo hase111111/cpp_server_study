@@ -10,6 +10,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -20,14 +21,40 @@ constexpr int kPort = 8080;
 constexpr const char* kHost = "0.0.0.0";
 
 std::string ReadFile(const std::string& path) {
-    std::ifstream file(path);
+    std::ifstream file(path, std::ios::binary);
     if (!file) {
         return "";
     }
 
-    std::ostringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
+    return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+std::string GetContentType(const std::string& path) {
+    if (path.size() >= 5 && path.substr(path.size() - 5) == ".html") {
+        return "text/html; charset=utf-8";
+    }
+    if (path.size() >= 3 && path.substr(path.size() - 3) == ".js") {
+        return "application/javascript; charset=utf-8";
+    }
+    if (path.size() >= 5 && path.substr(path.size() - 5) == ".wasm") {
+        return "application/wasm";
+    }
+    if (path.size() >= 4 && path.substr(path.size() - 4) == ".css") {
+        return "text/css; charset=utf-8";
+    }
+    if (path.size() >= 5 && path.substr(path.size() - 5) == ".json") {
+        return "application/json; charset=utf-8";
+    }
+    if (path.size() >= 4 && path.substr(path.size() - 4) == ".png") {
+        return "image/png";
+    }
+    if (path.size() >= 4 && path.substr(path.size() - 4) == ".jpg") {
+        return "image/jpeg";
+    }
+    if (path.size() >= 4 && path.substr(path.size() - 4) == ".svg") {
+        return "image/svg+xml";
+    }
+    return "application/octet-stream";
 }
 
 bool SendAll(int socketFd, const std::string& data) {
@@ -69,15 +96,33 @@ void HandleClient(int clientSocket) {
     std::string contentType;
     std::string response;
 
-    if (method == "GET" && (path == "/" || path == "/index.html")) {
-        body = ReadFile("index.html");
-        if (!body.empty()) {
-            statusLine = "HTTP/1.1 200 OK\r\n";
-            contentType = "text/html; charset=utf-8";
-        } else {
-            body = "<h1>index.html not found</h1>";
-            statusLine = "HTTP/1.1 404 Not Found\r\n";
+    if (method == "GET") {
+        std::string requestedPath = path;
+        const size_t queryPos = requestedPath.find('?');
+        if (queryPos != std::string::npos) {
+            requestedPath = requestedPath.substr(0, queryPos);
+        }
+
+        if (requestedPath.empty() || requestedPath == "/") {
+            requestedPath = "index.html";
+        } else if (requestedPath[0] == '/') {
+            requestedPath = requestedPath.substr(1);
+        }
+
+        if (requestedPath.find("..") != std::string::npos) {
+            body = "<h1>Forbidden</h1>";
+            statusLine = "HTTP/1.1 403 Forbidden\r\n";
             contentType = "text/plain; charset=utf-8";
+        } else {
+            body = ReadFile(requestedPath);
+            if (!body.empty()) {
+                statusLine = "HTTP/1.1 200 OK\r\n";
+                contentType = GetContentType(requestedPath);
+            } else {
+                body = "<h1>404 Not Found</h1>";
+                statusLine = "HTTP/1.1 404 Not Found\r\n";
+                contentType = "text/plain; charset=utf-8";
+            }
         }
     } else {
         body = "<h1>404 Not Found</h1>";
