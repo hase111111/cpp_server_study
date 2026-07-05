@@ -23,17 +23,24 @@ namespace {
 
 constexpr int kPort = 8080;
 constexpr const char* kHost = "0.0.0.0";
+constexpr const char* kPublicDir = "public";
 
-}  // namespace
-
-std::string ReadFile(const std::string& path) {
+std::filesystem::path ResolvePath(const std::string& path) {
     std::filesystem::path requestedPath(path);
     if (requestedPath.is_absolute()) {
         requestedPath = requestedPath.lexically_normal();
     } else {
-        requestedPath = std::filesystem::current_path() / requestedPath;
+        requestedPath = std::filesystem::path(kPublicDir) / requestedPath;
         requestedPath = requestedPath.lexically_normal();
     }
+
+    return requestedPath;
+}
+
+}  // namespace
+
+std::string ReadFile(const std::string& path) {
+    const std::filesystem::path requestedPath = ResolvePath(path);
 
     std::ifstream file(requestedPath, std::ios::binary);
     if (!file) {
@@ -123,6 +130,8 @@ void HandleClient(int clientSocket) {
         } else if (requestedPath[0] == '/') {
             requestedPath = requestedPath.substr(1);
         }
+
+        const std::filesystem::path resolvedPath = ResolvePath(requestedPath);
 
         if (requestedPath.find("..") != std::string::npos) {
             body = "<h1>Forbidden</h1>";
