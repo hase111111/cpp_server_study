@@ -15,6 +15,7 @@
 #include <iterator>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 
 #include "constants.hpp"
 
@@ -45,39 +46,37 @@ std::string ReadFile(const std::string& path) {
 }
 
 std::string GetContentType(const std::string& path) {
-    if (path.size() >= 5 && path.substr(path.size() - 5) == ".html") {
-        return "text/html; charset=utf-8";
+    const std::unordered_map<std::string, std::string> content_types{
+        {".html", "text/html; charset=utf-8"},
+        {".js", "application/javascript; charset=utf-8"},
+        {".wasm", "application/wasm"},
+        {".css", "text/css; charset=utf-8"},
+        {".json", "application/json; charset=utf-8"},
+        {".png", "image/png"},
+        {".jpg", "image/jpeg"},
+        {".jpeg", "image/jpeg"},
+        {".svg", "image/svg+xml"},
+    };
+
+    const size_t last_dot{path.find_last_of('.')};
+    if (last_dot == std::string::npos) {
+        return "application/octet-stream";
     }
-    if (path.size() >= 3 && path.substr(path.size() - 3) == ".js") {
-        return "application/javascript; charset=utf-8";
+
+    const std::string extension{path.substr(last_dot)};
+    if (const auto it{content_types.find(extension)}; it != content_types.end()) {
+        return it->second;
     }
-    if (path.size() >= 5 && path.substr(path.size() - 5) == ".wasm") {
-        return "application/wasm";
-    }
-    if (path.size() >= 4 && path.substr(path.size() - 4) == ".css") {
-        return "text/css; charset=utf-8";
-    }
-    if (path.size() >= 5 && path.substr(path.size() - 5) == ".json") {
-        return "application/json; charset=utf-8";
-    }
-    if (path.size() >= 4 && path.substr(path.size() - 4) == ".png") {
-        return "image/png";
-    }
-    if (path.size() >= 4 && path.substr(path.size() - 4) == ".jpg") {
-        return "image/jpeg";
-    }
-    if (path.size() >= 4 && path.substr(path.size() - 4) == ".svg") {
-        return "image/svg+xml";
-    }
+
     return "application/octet-stream";
 }
 
-bool SendAll(const int socketFd, const std::string& data) {
-    const char* ptr{data.data()};
+bool SendAll(const int socket_fd, const std::string& data) {
+    const char* const ptr{data.data()};
     size_t total_sent{0};
 
     while (total_sent < data.size()) {
-        const ssize_t sent{send(socketFd, ptr + total_sent, data.size() - total_sent, 0)};
+        const ssize_t sent{send(socket_fd, ptr + total_sent, data.size() - total_sent, 0)};
         if (sent <= 0) {
             return false;
         }
@@ -87,83 +86,86 @@ bool SendAll(const int socketFd, const std::string& data) {
     return true;
 }
 
-void HandleClient(const int clientSocket) {
-    char buffer[4096];
+void HandleClient(const int client_socket) {
     std::string request{};
-
-    while (true) {
-        const ssize_t received{recv(clientSocket, buffer, sizeof(buffer), 0)};
-        if (received <= 0) {
-            break;
-        }
-        request.append(buffer, static_cast<size_t>(received));
-        if (request.find("\r\n\r\n") != std::string::npos) {
-            break;
+    
+    {
+        char buffer[4096];
+        while (true) {
+            const ssize_t received{recv(client_socket, buffer, sizeof(buffer), 0)};
+            if (received <= 0) {
+                break;
+            }
+            request.append(buffer, static_cast<size_t>(received));
+            if (request.find("\r\n\r\n") != std::string::npos) {
+                break;
+            }
         }
     }
 
-    std::istringstream requestStream(request);
-    std::string method, path, version;
-    requestStream >> method >> path >> version;
+    std::istringstream request_stream(request);
+    std::string method{}, path{}, version{};
+    request_stream >> method >> path >> version;
 
-    std::cout << "Request: " << method << " " << path << "\n";
+    std::cout << "Request Raw Text: " << std::endl 
+        << request << std::endl << "------------------------" << std::endl;
+    std::cout << "Request: " << method << " " << path << " " << version << std::endl
+        << "------------------------" << std::endl;
 
-    std::string body;
-    std::string statusLine;
-    std::string contentType;
-    std::string response;
-    const bool isHeadRequest{(method == "HEAD")};
+    std::string body{}, status_line{}, content_type{}, response{};
+    const bool is_head_request{(method == "HEAD")};
 
     if (method == "GET" || method == "HEAD") {
-        std::string requestedPath{path};
-        const size_t queryPos{requestedPath.find('?')};
+        std::string requested_path{path};
+        const size_t queryPos{requested_path.find('?')};
         if (queryPos != std::string::npos) {
-            requestedPath = requestedPath.substr(0, queryPos);
+            requested_path = requested_path.substr(0, queryPos);
         }
 
-        if (requestedPath.empty() || requestedPath == "/") {
-            requestedPath = "index.html";
-        } else if (requestedPath[0] == '/') {
-            requestedPath = requestedPath.substr(1);
+        if (requested_path.empty() || requested_path == "/") {
+            requested_path = "index.html";
+        } else if (requested_path[0] == '/') {
+            requested_path = requested_path.substr(1);
         }
 
-        const std::filesystem::path resolvedPath{ResolvePath(requestedPath)};
+        const std::filesystem::path resolved_path{ResolvePath(requested_path)};
 
-        if (requestedPath.find("..") != std::string::npos) {
+        if (requested_path.find("..") != std::string::npos) {
             body = "<h1>Forbidden</h1>";
-            statusLine = "HTTP/1.1 403 Forbidden\r\n";
-            contentType = "text/plain; charset=utf-8";
+            status_line = "HTTP/1.1 403 Forbidden\r\n";
+            content_type = "text/plain; charset=utf-8";
         } else {
-            body = ReadFile(requestedPath);
+            body = ReadFile(requested_path);
             if (!body.empty()) {
-                statusLine = "HTTP/1.1 200 OK\r\n";
-                contentType = GetContentType(requestedPath);
+                status_line = "HTTP/1.1 200 OK\r\n";
+                content_type = GetContentType(requested_path);
             } else {
                 body = "<h1>404 Not Found</h1>";
-                statusLine = "HTTP/1.1 404 Not Found\r\n";
-                contentType = "text/plain; charset=utf-8";
+                status_line = "HTTP/1.1 404 Not Found\r\n";
+                content_type = "text/plain; charset=utf-8";
             }
         }
     } else {
         body = "<h1>404 Not Found</h1>";
-        statusLine = "HTTP/1.1 404 Not Found\r\n";
-        contentType = "text/plain; charset=utf-8";
+        status_line = "HTTP/1.1 404 Not Found\r\n";
+        content_type = "text/plain; charset=utf-8";
     }
 
     std::ostringstream header{};
-    header << statusLine
-           << "Content-Type: " << contentType << "\r\n"
+    header << status_line
+           << "Content-Type: " << content_type << "\r\n"
            << "Content-Length: " << body.size() << "\r\n"
            << "Connection: close\r\n"
            << "\r\n";
 
-    if (isHeadRequest) {
+    if (is_head_request) {
         body.clear();
     }
 
     response = header.str() + body;
-    SendAll(clientSocket, response);
-    close(clientSocket);
+
+    SendAll(client_socket, response);
+    close(client_socket);
 }
 
 }  // namespace my_cpp_server::util

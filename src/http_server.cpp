@@ -109,17 +109,18 @@ int HttpServer::BindAndListen(const char* host, const int port) {
 
 void HttpServer::AcceptLoop() {
     while (true) {
-        sockaddr_in clientAddress{};
-        socklen_t clientLen{sizeof(clientAddress)};
-        int clientSocket{accept(server_socket_, reinterpret_cast<sockaddr*>(&clientAddress), &clientLen)};
+        sockaddr_in client_address{};
+        socklen_t client_len{sizeof(client_address)};
+        int client_socket{
+            accept(server_socket_, reinterpret_cast<sockaddr*>(&client_address), &client_len)};
 
-        if (clientSocket < 0) {
+        if (client_socket < 0) {
             std::cerr << "accept failed" << std::endl;
             continue;
         }
 
-        std::thread([clientSocket]() {
-            util::HandleClient(clientSocket);
+        std::thread([client_socket]() {
+            util::HandleClient(client_socket);
         }).detach();
     }
 }

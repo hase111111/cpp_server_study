@@ -7,18 +7,18 @@
 namespace my_cpp_server {
 
 class HttpServer final {
- public:
-  HttpServer();
-  ~HttpServer();
+  public:
+    HttpServer();
+    ~HttpServer();
 
-  int Run();
+    int Run();
 
- private:
-  int InitializeSocket();
-  int BindAndListen(const char* host, int port);
-  void AcceptLoop();
+  private:
+    int InitializeSocket();
+    int BindAndListen(const char* host, int port);
+    void AcceptLoop();
 
-  int server_socket_{-1};
+    int server_socket_{-1};
 };
 
 }  // namespace my_cpp_server
