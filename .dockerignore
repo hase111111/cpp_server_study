@@ -4,3 +4,4 @@ web_server
 .git
 .gitignore
 README*
+build/
