@@ -10,37 +10,31 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <sstream>
 #include <string>
 
-namespace util {
+#include "constants.hpp"
 
-namespace {
-
-constexpr int kPort = 8080;
-constexpr const char* kHost = "0.0.0.0";
-constexpr const char* kPublicDir = "public";
+namespace my_cpp_server::util {
 
 std::filesystem::path ResolvePath(const std::string& path) {
-    std::filesystem::path requestedPath(path);
-    if (requestedPath.is_absolute()) {
-        requestedPath = requestedPath.lexically_normal();
+    std::filesystem::path requested_path(path);
+
+    if (requested_path.is_absolute()) {
+        requested_path = requested_path.lexically_normal();
     } else {
-        requestedPath = std::filesystem::path(kPublicDir) / requestedPath;
-        requestedPath = requestedPath.lexically_normal();
+        requested_path = std::filesystem::path(constants::kPublicDir) / requested_path;
+        requested_path = requested_path.lexically_normal();
     }
 
-    return requestedPath;
+    return requested_path;
 }
 
-}  // namespace
-
 std::string ReadFile(const std::string& path) {
-    const std::filesystem::path requestedPath = ResolvePath(path);
+    const std::filesystem::path requestedPath{ResolvePath(path)};
 
     std::ifstream file(requestedPath, std::ios::binary);
     if (!file) {
@@ -78,25 +72,27 @@ std::string GetContentType(const std::string& path) {
     return "application/octet-stream";
 }
 
-bool SendAll(int socketFd, const std::string& data) {
-    const char* ptr = data.data();
-    size_t totalSent = 0;
-    while (totalSent < data.size()) {
-        ssize_t sent = send(socketFd, ptr + totalSent, data.size() - totalSent, 0);
+bool SendAll(const int socketFd, const std::string& data) {
+    const char* ptr{data.data()};
+    size_t total_sent{0};
+
+    while (total_sent < data.size()) {
+        const ssize_t sent{send(socketFd, ptr + total_sent, data.size() - total_sent, 0)};
         if (sent <= 0) {
             return false;
         }
-        totalSent += static_cast<size_t>(sent);
+        total_sent += static_cast<size_t>(sent);
     }
+
     return true;
 }
 
-void HandleClient(int clientSocket) {
+void HandleClient(const int clientSocket) {
     char buffer[4096];
-    std::string request;
+    std::string request{};
 
     while (true) {
-        ssize_t received = recv(clientSocket, buffer, sizeof(buffer), 0);
+        const ssize_t received{recv(clientSocket, buffer, sizeof(buffer), 0)};
         if (received <= 0) {
             break;
         }
@@ -116,11 +112,11 @@ void HandleClient(int clientSocket) {
     std::string statusLine;
     std::string contentType;
     std::string response;
-    const bool isHeadRequest = (method == "HEAD");
+    const bool isHeadRequest{(method == "HEAD")};
 
     if (method == "GET" || method == "HEAD") {
-        std::string requestedPath = path;
-        const size_t queryPos = requestedPath.find('?');
+        std::string requestedPath{path};
+        const size_t queryPos{requestedPath.find('?')};
         if (queryPos != std::string::npos) {
             requestedPath = requestedPath.substr(0, queryPos);
         }
@@ -131,7 +127,7 @@ void HandleClient(int clientSocket) {
             requestedPath = requestedPath.substr(1);
         }
 
-        const std::filesystem::path resolvedPath = ResolvePath(requestedPath);
+        const std::filesystem::path resolvedPath{ResolvePath(requestedPath)};
 
         if (requestedPath.find("..") != std::string::npos) {
             body = "<h1>Forbidden</h1>";
@@ -154,7 +150,7 @@ void HandleClient(int clientSocket) {
         contentType = "text/plain; charset=utf-8";
     }
 
-    std::ostringstream header;
+    std::ostringstream header{};
     header << statusLine
            << "Content-Type: " << contentType << "\r\n"
            << "Content-Length: " << body.size() << "\r\n"
@@ -170,4 +166,4 @@ void HandleClient(int clientSocket) {
     close(clientSocket);
 }
 
-}  // namespace util
+}  // namespace my_cpp_server::util

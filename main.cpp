@@ -5,5 +5,10 @@
 #include "http_server.hpp"
 
 int main() {
-    return my_cpp_server::Run();
+    using my_cpp_server::HttpServer;
+
+    // サーバーを起動する
+    HttpServer server{};
+    
+    return server.Run();
 }

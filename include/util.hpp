@@ -4,13 +4,19 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 
-namespace util {
+namespace my_cpp_server::util {
+
+std::filesystem::path ResolvePath(const std::string& path);
 
 std::string ReadFile(const std::string& path);
+
 std::string GetContentType(const std::string& path);
+
 bool SendAll(int socketFd, const std::string& data);
+
 void HandleClient(int clientSocket);
 
-}  // namespace util
+}  // namespace my_cpp_server::util

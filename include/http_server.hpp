@@ -6,6 +6,19 @@
 
 namespace my_cpp_server {
 
-int Run();
+class HttpServer final {
+ public:
+  HttpServer();
+  ~HttpServer();
+
+  int Run();
+
+ private:
+  int InitializeSocket();
+  int BindAndListen(const char* host, int port);
+  void AcceptLoop();
+
+  int server_socket_{-1};
+};
 
 }  // namespace my_cpp_server
