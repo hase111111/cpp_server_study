@@ -2,9 +2,18 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "cmake: configure",
+      "type": "shell",
+      "command": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "build",
       "type": "shell",
-      "command": "make rebuild",
+      "command": "cmake --build build",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -19,7 +28,7 @@
     {
       "label": "run",
       "type": "shell",
-      "command": "make run",
+      "command": "./build/web_server",
       "options": {
         "cwd": "${workspaceFolder}"
       },
